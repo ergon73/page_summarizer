@@ -18,14 +18,15 @@ logger = logging.getLogger(__name__)
 class PageSummarizer:
     """Агент для создания резюме веб-страниц."""
     
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
         """
         Инициализация агента.
         
         Args:
             api_key: API ключ для ProxyAPI (если не указан, берется из переменной окружения)
+            model: Модель AI для использования (если не указана, берется из переменной окружения)
         """
-        self.openai_module = OpenAIModule(api_key=api_key)
+        self.openai_module = OpenAIModule(api_key=api_key, model=model)
         
         # Настройки для HTTP запросов
         self.session = requests.Session()
@@ -203,15 +204,16 @@ class PageSummarizer:
         
         return text
     
-    def summarize_page(self, url: str) -> str:
+    def summarize_page(self, url: str, model: Optional[str] = None) -> str:
         """
         Создать резюме веб-страницы.
         
         Args:
             url: URL страницы для анализа
+            model: Модель AI для использования (если не указана, используется модель по умолчанию)
             
         Returns:
-            Краткое резюме страницы (3-5 предложений)
+            Краткое резюме страницы (1-5 предложений, адаптивно)
             
         Raises:
             Exception: При любой ошибке в процессе создания резюме
@@ -226,7 +228,7 @@ class PageSummarizer:
             text = self._extract_text(html)
             
             # 3. Создаем резюме с помощью AI
-            summary = self.openai_module.get_summary(text)
+            summary = self.openai_module.get_summary(text, model=model)
             
             # 4. Проверяем качество резюме
             if not self.openai_module.validate_summary(summary):
@@ -250,6 +252,9 @@ def main():
     try:
         agent = PageSummarizer()
         print("✅ Агент успешно инициализирован")
+        print(f"🤖 Используемая модель: {agent.openai_module.model}")
+        print(f"📏 Лимит текста: {agent.openai_module.max_text_length:,} символов")
+        print("💡 Настройки можно изменить в файле .env")
     except Exception as e:
         print(f"❌ Ошибка инициализации агента: {e}")
         return
@@ -267,9 +272,21 @@ def main():
                 print("⚠️ Пожалуйста, введите URL")
                 continue
             
+            # Спрашиваем о модели (опционально)
+            model_choice = input(f"🤖 Использовать модель {agent.openai_module.model}? (Enter для подтверждения, или введите 'gpt-4o'/'gpt-3.5-turbo'): ").strip()
+            
+            model_to_use = None
+            if model_choice:
+                if model_choice in ["gpt-4o", "gpt-3.5-turbo"]:
+                    model_to_use = model_choice
+                else:
+                    print("⚠️ Неподдерживаемая модель. Используется модель по умолчанию.")
+            
             # Создаем резюме
             print(f"\n🔄 Создаем резюме для: {url}")
-            summary = agent.summarize_page(url)
+            if model_to_use:
+                print(f"🤖 Используется модель: {model_to_use}")
+            summary = agent.summarize_page(url, model=model_to_use)
             
             print("\n📋 РЕЗЮМЕ СТРАНИЦЫ:")
             print("=" * 50)
